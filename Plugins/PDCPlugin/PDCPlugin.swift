@@ -85,6 +85,12 @@ struct ModuleBuildRequest {
         let swiftToolchain = try swiftToolchain()
         print("found Swift toolchain: \(swiftToolchain)")
 
+        let triple = "armv7em-none-none-eabi"
+        let toolchainPath = "\(home)Library/Developer/Toolchains/swift-latest.xctoolchain"
+        let unicodeDataTablesPathDevice = "\(toolchainPath)/usr/lib/swift/embedded/\(triple)"
+        let unicodeDataTablesPathSimulator = "\(toolchainPath)/usr/lib/swift/embedded/arm64-apple-none-macho"
+        let unicodeDataTablesLibName = "swiftUnicodeDataTables" // libswiftUnicodeDataTables.a
+
         let playdateSDK = try playdateSDK()
         let playdateSDKVersion = (try? String(
             contentsOf: URL(filePath: playdateSDK).appending(path: "VERSION.txt"),
@@ -335,6 +341,8 @@ struct ModuleBuildRequest {
                     print("building pdex.elf")
                     try cc([setup, module.modulePath(for: .device)] + mcFlags + [
                         "-T\(playdateSDK)/C_API/buildsupport/link_map.ld",
+                        // This does NOT seem to work for the device build:
+                        "-Wl,--verbose,-L\(unicodeDataTablesPathDevice),-l\(unicodeDataTablesLibName)",
                         "-Wl,-Map=\(context.pluginWorkDirectory.appending(["pdex.map"]).string),--cref,--gc-sections,--no-warn-mismatch,--emit-relocs",
                         "-o", sourcePath.appending(["pdex.elf"]).string
                     ])
@@ -364,6 +372,8 @@ struct ModuleBuildRequest {
                     try clang([
                         "-nostdlib", "-dead_strip",
                         "-Wl,-exported_symbol,_eventHandlerShim", "-Wl,-exported_symbol,_eventHandler",
+                        // While this seems to work fine for the simulator build:
+                        "-Wl,-L\(unicodeDataTablesPathSimulator),-l\(unicodeDataTablesLibName)",
                         module.modulePath(for: .simulator), "-dynamiclib", "-rdynamic", "-lm",
                         "-DTARGET_SIMULATOR=1", "-DTARGET_EXTENSION=1",
                         "-I", ".",
